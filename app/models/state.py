@@ -4,29 +4,45 @@ from dataclasses import dataclass, field
 @dataclass
 class AgentState:
     """
-    Shared state for the Northstar support workflow.
+    Shared state passed through the Northstar multi-agent workflow.
 
-    Think of this as the case file that moves through
-    the different parts of the system.
+    Think of this as the case file that travels through
+    triage, retrieval, response generation, critic review,
+    retries, and human review.
     """
 
-    # Original customer support ticket
+    # Original customer ticket
     ticket: str
 
-    # Information added during triage
+    # -------------------------
+    # Triage Agent output
+    # -------------------------
     category: str | None = None
-    priority: str | None = None
+    issue_summary: str | None = None
+    classification_confidence: float | None = None
 
-    # Relevant policies returned by the retrieval tool
+    # -------------------------
+    # ChromaDB retrieval output
+    # -------------------------
     retrieved_policies: list[str] = field(default_factory=list)
 
-    # Draft created by the response agent
+    # -------------------------
+    # Response Agent output
+    # -------------------------
     draft_response: str | None = None
+    policy_used: list[str] = field(default_factory=list)
+    unresolved_questions: list[str] = field(default_factory=list)
 
-    # Results from the critic agent
-    critic_status: str | None = None
-    critic_feedback: str | None = None
+    # -------------------------
+    # Critic Agent output
+    # -------------------------
+    critic_decision: str | None = None
+    unsupported_claims: list[str] = field(default_factory=list)
+    missing_information: list[str] = field(default_factory=list)
+    correction_instructions: list[str] = field(default_factory=list)
 
-    # Information used by the orchestrator
+    # -------------------------
+    # Orchestration state
+    # -------------------------
     retry_count: int = 0
-    requires_human_review: bool = True
+    requires_human_review: bool = False
