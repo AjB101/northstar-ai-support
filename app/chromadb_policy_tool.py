@@ -3,7 +3,7 @@ import chromadb
 def initialize_policy_vector_db():
     db_client = chromadb.Client()
     
-    # Fix from Usen's Point 3: Use get_or_create_collection
+    #  Use get_or_create_collection
     policy_collection = db_client.get_or_create_collection(
         name="northstar_support_rules"
     )
@@ -30,12 +30,12 @@ def fetch_rule_for_ticket(collection, user_problem):
         n_results=1
     )
     
-    # Fix from Usen's Point 4: Guard the empty-result case
+    # Guard the empty-result case
     documents = search_results.get("documents", [])
     if not documents or not documents[0]:
         return None
         
-    # Fix from Usen's Point 5: Preserve policy ID/metadata
+    #  Preserve policy ID/metadata
     metadatas = search_results.get("metadatas", [])
     metadata = metadatas[0][0] if metadatas and metadatas[0] else {}
     
