@@ -55,10 +55,10 @@ Decision rules:
 
 Return JSON in exactly this structure:
 
-{
+{{
     "critic_decision": "PASS | REVISE",
     "unsupported_claims": [],
     "missing_information": [],
     "correction_instructions": []
-}
+}}
 """

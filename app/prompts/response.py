@@ -27,9 +27,9 @@ Instructions:
 
 Return JSON in exactly this structure:
 
-{
+{{
     "draft_response": "customer-facing response",
     "policy_used": ["name or identifier of policy used"],
     "unresolved_questions": ["any question or missing information that prevents a fully supported answer"]
-}
+}}
 """
