@@ -1,3 +1,4 @@
+# imports & environment setup
 import json
 import os
 
@@ -5,6 +6,7 @@ from typing import List, Dict, Any
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+#imports the prompts, information about policy, and audit logger
 from app.prompts import (
     CRITIC_SYSTEM_PROMPT,
     RESPONSE_SYSTEM_PROMPT,
@@ -14,20 +16,21 @@ from app.chromadb_policy_tool import (
     fetch_rule_for_ticket, 
 ) 
 from app.northstar_audit_logger import audit_logger
-
 load_dotenv()
 #retrieves deepseek key details from .env
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL","deepseek-v4-flash")
 
+#starts the LLM
 llm = ChatOpenAI(
     model=DEEPSEEK_MODEL,
     api_key=DEEPSEEK_API_KEY,
     base_url="https://api.deepseek.com",
     temperature=0,
 )
-
+#starts the policy vector DB
 _policy_collection = initialize_policy_vector_db()
+
 def retrieve_policy(ticket: str) -> Dict[str, Any]:
     """
     Retrieve the most relevant Northstar policy for the ticket.
@@ -50,13 +53,7 @@ def retrieve_policy(ticket: str) -> Dict[str, Any]:
             ),
             "metadata": {},
         }
-
     return policy_result
-
-
-
-
-
 
 class ResponseAgent:
     """
@@ -218,6 +215,10 @@ Deterministic policy-check violations:
         )
 
 #requests LLM to evaluate the proposal
+
+# Send the evaluation prompt to the LLM and capture its raw response.
+# The critic uses this LLM call to judge the draft reply based on the ticket,
+# retrieved policy, retry count, and any deterministic violations.
         raw = (
             (prompt | self.llm).invoke(
                 {
@@ -233,6 +234,11 @@ Deterministic policy-check violations:
         )
 
 # structures the Critic output
+
+# Parse the critic's JSON output safely.
+# The LLM may return fenced code blocks or malformed JSON, so we strip formatting
+# and attempt to load it. If parsing fails, fall back to a safe default structure
+# to prevent the orchestrator from crashing and to force a REVISE decision.
         try:
             cleaned = (
                 raw
@@ -260,7 +266,9 @@ Deterministic policy-check violations:
                 ),
             }
 
-# Make's sure Critic result is a dictionary
+# Fallback: ensure the critic output is a valid dictionary.
+# If the LLM returns a malformed or non-dict result, replace it with a safe,
+# structured default so the orchestrator can continue without crashing.
         if not isinstance(result, dict):
             result = {
                 "critic_decision": "REVISE",
@@ -278,6 +286,10 @@ Deterministic policy-check violations:
             }
 
 # Ensures all expected fields exist
+
+# Normalize the critic output by ensuring all expected fields exist.
+# This prevents crashes if the LLM returns partial or malformed JSON and guarantees
+# the orchestrator always receives a complete, predictable result structure.
         result.setdefault(
             "critic_decision",
             "REVISE",
@@ -308,6 +320,11 @@ Deterministic policy-check violations:
         )
 
 # deterministic violations
+
+# Enforce deterministic rule violations (forbidden phrases).
+# If any forbidden language is detected, override the critic decision to REVISE,
+# attach the violations to the issues list, and add a correction instruction
+# so the ResponseAgent knows how to fix the next retry.
         if deterministic["violations"]:
             result["critic_decision"] = "REVISE"
             for violation in deterministic["violations"]:
@@ -328,7 +345,9 @@ Deterministic policy-check violations:
                     correction
                 )
 
-#human review field name matched
+#standardized human review field name 
+# 'requires_human_review' is always False unless the critic flags escalation.
+# 'retry_count' tracks how many times this draft has been evaluated.
         result["requires_human_review"] = False
         result["retry_count"] = retry_count
 
@@ -359,6 +378,8 @@ Deterministic policy-check violations:
             )
         return result
 
+#instantiate agents, creates the actual objects the orchestrator will use.
+#everything above is simply the defining their functions
 policy_checker = PolicyChecker()
 response_agent = ResponseAgent(llm)
 critic_reviewer = CriticReviewer(
