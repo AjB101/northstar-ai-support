@@ -9,6 +9,8 @@ from app.critic_agent import (
     critic_reviewer,
 )
 
+from app.northstar_audit_logger import audit_logger
+
 
 MAX_RETRIES = 2
 
@@ -58,6 +60,11 @@ def run_workflow(ticket: str) -> AgentState:
 
     state = AgentState(ticket=ticket)
 
+    audit_logger.log({
+    "event": "workflow_started",
+    "ticket": ticket,
+    })
+
     # 1. TRIAGE
     triage_agent = TriageAgent(llm)
     triage_result = triage_agent.classify(ticket)
@@ -68,11 +75,23 @@ def run_workflow(ticket: str) -> AgentState:
         "classification_confidence"
     ]
 
+    audit_logger.log({
+    "event": "triage_completed",
+    "category": state.category,
+    "issue_summary": state.issue_summary,
+    "classification_confidence": state.classification_confidence,
+    })
+
     # 2. POLICY RETRIEVAL
     policy_result = retrieve_policy(ticket)
 
     policy_text = policy_result["policy_text"]
     state.retrieved_policies = [policy_text]
+
+    audit_logger.log({
+    "event": "policy_retrieved",
+    "policy": policy_text,
+    })
 
     # 3. RESPONSE + CRITIC LOOP
     while True:
@@ -160,4 +179,15 @@ def run_workflow(ticket: str) -> AgentState:
         # No retries remain.
         break
 
-    return finalize_workflow(state)
+    final_state = finalize_workflow(state)
+
+    audit_logger.log({
+    "event": "workflow_completed",
+    "critic_decision": final_state.critic_decision,
+    "retry_count": final_state.retry_count,
+    "requires_human_review": final_state.requires_human_review,
+    })
+
+    audit_logger.save_audit_log()
+
+    return final_state
